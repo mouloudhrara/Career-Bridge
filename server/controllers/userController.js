@@ -33,7 +33,8 @@ const loginUser= async (req, res)=>{
 // ForgotPassword
 const forgotPassword = async (req, res)=>{
     const {email} = req.body;
-    // check if user exists
+    try{
+        // check if user exists
     const user = await User.findOne({where: {email}});
     if(!user){
         return res.status(404).json({message: 'User not found with this email'});
@@ -60,7 +61,78 @@ const forgotPassword = async (req, res)=>{
     // creates a reset token
     // and sends a reset URL like this:
     const resetUrl=`http://localhost:3000/reset-password/${token}`;
-}
+
+    const mailOptions={
+        from: process.env.EMAIL_USER,
+        to:user.email,
+        subject:'Password Reset Request',
+        html:`<p>You requested a password reset.</p>
+            <p>Click this link to reset your password: <a href="${resetUrl}">${resetUrl}</a></p>
+            <p>This link will expire in 15 min</p>`,
+    };
+    // sends an email to user.email
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({message:'Reset link sent to email'});
+    }
+    catch(err){
+        res.status(500).json({message:'Something went wrong'});
+    }
+};
+
+// Reset Password
+const resetPassword= async (req, res)=>{
+    const {token, newPassword} = res.body;
+
+    try{
+        // find the user by the reset token
+        const user = await User.findOne({where: {resetToken: token}});
+        if(!user){
+            res.status(400).json({message: 'Invalid or expired reset token'});
+        }
+        // check if the toke has expired
+        if(user.resetTokenExpires < Date.now()){
+            return res.status(400).json({message:'Reset token has expired'});
+        }
+
+        // hash the new password 
+        const salt= await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // Update user password and clear reset token
+        user.password=hashedPassword;
+        user.resetToken= null;
+        user.resetTokenExpires=null;
+
+        await user.save();
+
+        res.status(200).json({message: 'Password successfully reset'});
+    }
+    catch(err){
+        console.log(err);
+        res.status(400).json({message: 'Something went wrong'});
+    }
+};
+
+// upload cv
+const uploadCV= async (req, res)=>{
+    try {
+        const userId=req.user.id; // user id exists from auth middleware
+        const filePath= req.file.path;
+        // Update user with Cv path
+        // find the user with its primary key
+        const user= await User.findByPk(userId);
+        if(!user) return res.status(400).json({message: 'User not found'});
+
+        // saving the user's cvPath to db
+        user.cvPath=filePath;
+        await user.save();
+        res.status(200).json({message: 'CV uploaded successfully', path:filePath});
+    }catch(err){
+        console.error(err);
+        res.status(500).json({message:'Error uploading CV'});
+    }
+};
 
 
-module.exports={registerUser,loginUser};
+
+module.exports={registerUser,loginUser, forgotPassword, resetPassword, uploadCV};

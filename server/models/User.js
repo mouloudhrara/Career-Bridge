@@ -43,8 +43,10 @@ const User= sequelize.define('User', {
     resetTokenExpires:{
         type:DataTypes.DATE,
         allowNull:true,
-    }
-
+    }, cvPath:{
+        type:DataTypes.STRING,
+        allowNull:true,
+    },
 },{
     tableName: 'users' // specifies the name of the database table that this model will map to
 });

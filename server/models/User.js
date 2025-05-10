@@ -52,7 +52,7 @@ const User= sequelize.define('User', {
 });
 
 // Static Signup Method
-User.signup = async function (firstName, lastName, email, password) {
+User.signup = async function (firstName, lastName, email, password, role ) {
     if (!firstName || !lastName || !email || !password) {
         throw Error('All fields must be filled');
     }
@@ -76,7 +76,11 @@ User.signup = async function (firstName, lastName, email, password) {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create and return the new user
-    const user = await this.create({ firstName, lastName, email, password: hashedPassword });
+    const user = await this.create({ firstName, 
+        lastName, 
+        email, 
+        password: hashedPassword, 
+        role });
     return user;
 };
 

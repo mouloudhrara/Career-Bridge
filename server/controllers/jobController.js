@@ -1,56 +1,75 @@
-const { UUID } = require("sequelize");
-
-const jobs= [
-    {id:UUID, title:'Software Engineer', description:'Develop software', skillsRequired:['JavaScript', 'Node.js'], postedBy: UUID},
-    {id:UUID, title:'Frontend Developer', description:'Build user interfaces', skillsRequired:['React', 'Css'], postedBy: UUID}
-];
+const Job=require('../models/Job');
 // Create job
-const createJob= (req, res)=>{
+const createJob= async (req, res)=>{
     const {title, description, skillsRequired, postedBy} = req.body;
 
     if(!title || !description || !skillsRequired || !postedBy){
         return res.status(400).json({error:'Missing required fields'});
     }
-
-    const newJob= {
-        id:UUID,
+    try {
+        const job= await Job.create({
         title, 
         description,
         skillsRequired,
         postedBy
-    };
-
-    // add a new job
-    jobs.push(newJob);
-    res.status(201).json(newJob); 
+    });
+    res.status(201).json(job); 
+    } catch(err){
+        res.status(500).json({error: 'Failed to create job', details: err.message});
+    }
 };
 
 // Update job
-const updateJob= (req, res)=>{
+const updateJob= async (req, res)=>{
     const {id}= req.params;
     const {title, description, skillsRequired, postedBy} = req.body;
 
-    job = jobs.find(job => job.id===id);
-
-    if(!job){
+    try{
+        const job = await Job.findByPk(id);
+        if(!job){
         return res.status(404).json({error: 'Job not found'});
+        }
+        await job.update({
+            title:title || job.title,
+            description:description || job.description,
+            skillsRequired:skillsRequired || job.skillsRequired,
+            postedBy:postedBy || job.postedBy,
+        })
+        res.json(job);
+    } catch(err){
+        console.error(err);
+        res.status(500).json({err : 'Failed to update job'});
     }
-
-    job.title=title || job.title;
-    job.description=description || job.description;
-    job.skillsRequired=skillsRequired || job.skillsRequired;
-    job.postedBy=postedBy || job.postedBy;
-
-    res.json(job); //respond with the updated job
 }
 
 // Delete job
-const deleteJob = (req, res)=> {
+const deleteJob = async (req, res)=> {
     const {id} = req.params;
-
-    const job= jobs.find(job=>job.id === id);
-
-    if(!job) {
+    try {
+        const job= await Job.findByPk(id);
+        if(!job) {
         return res.status(404).json({error: 'Job not found'});
     }
+    await job.destroy();
+    res.status(200).json({message: 'Job deleted successfully'});
+    } catch(err){
+        res.status(500).json({err: 'Failed to delete job'});
+    }
+    
+};
+// get jobs
+const getJobs = async (req, res)=>{
+    try{
+        const jobs=Job.findAll();
+        res.json(jobs);
+    } catch(err){
+        res.status(500).json({error: 'Failed to fetch jobs'});
+    }
+};
+
+module.exports= {
+    createJob, 
+    updateJob,
+    deleteJob,
+    getJobs
 }

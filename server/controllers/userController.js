@@ -4,8 +4,8 @@ const crypto= require('crypto');
 const nodemailer= require('nodemailer');
 require('dotenv').config();
 
-const createToken= (id)=>{
-    return jwt.sign({id},process.env.SECRET,{expiresIn: '2d'});
+const createToken= (id, role)=>{
+    return jwt.sign({id, role},process.env.SECRET,{expiresIn: '2d'});
 };
 // Signup user
 const registerUser= async (req, res)=>{
@@ -23,8 +23,8 @@ const loginUser= async (req, res)=>{
     const {firstName, lastName, email, password} = req.body;
     try{
         const user= await User.login(email, password);
-        const token= createToken(user.id);
-        return res.status(201).json({email:user.email, token});
+        const token= createToken(user.id, user.role);
+        return res.status(201).json({email:user.email, token,id: user.id});
     }catch(err){
         return res.status(400).json({message:err.message});
     }

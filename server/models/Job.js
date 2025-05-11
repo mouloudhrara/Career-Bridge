@@ -15,11 +15,11 @@ const Job= sequelize.define('Job',{
         type:DataTypes.TEXT,
     },
     skillsRequired: {
-        type:DataTypes.ARRAY(DataTypes.STRING),
+        type:DataTypes.JSON,
         allowNull:false,
     },
     postedBy:{
-        type:DataTypes.INTEGER,
+        type:DataTypes.UUID,
         allowNull:false,
     }
 } , {
@@ -37,3 +37,4 @@ Job.associate = (models)=>{
     });
 };
 
+module.exports=Job;

@@ -1,7 +1,12 @@
+const {extractCVData } = require('../services/groqService');
+
 const {User} = require('../models/User');
 const jwt= require('jsonwebtoken');
 const crypto= require('crypto');
 const nodemailer= require('nodemailer');
+const fs= require("fs");
+const pdfParse = require('pdf-parse');
+
 require('dotenv').config();
 
 const createToken= (id, role)=>{
@@ -116,6 +121,9 @@ const resetPassword= async (req, res)=>{
 // upload cv
 const uploadCV= async (req, res)=>{
     try {
+        
+        // console.log('received file', req.file);
+
         const userId=req.user.id; // user id exists from auth middleware
         const filePath= req.file.path;
         // Update user with Cv path
@@ -126,7 +134,26 @@ const uploadCV= async (req, res)=>{
         // saving the user's cvPath to db
         user.cvPath=filePath;
         await user.save();
-        res.status(200).json({message: 'CV uploaded successfully', path:filePath});
+
+        // Extract text from the uploaded CV (PDF)
+        fs.readFile(filePath, async (err, data)=>{
+            if(err) return res.status(500).json({message: 'Error reading the uploaded file'});
+
+            pdfParse(data).then(async (pdfData)=>{
+                const extractedText = pdfData.text;
+                try{
+                    // call Groq to extract skills and experience
+                const {skills, experience} = await extractCVData(extractedText);
+                console.log('Extracted skills', skills);
+                console.log('Extracted experience', experience);
+                res.status(200).json({ message: 'CV uploaded and parsed', skills, experience });
+                } catch(err){
+                    console.error('Failed to extract data from CV:', err);
+                    res.status(500).json({ message: 'Error extracting data from CV' });
+                }
+                
+            });
+        });
     }catch(err){
         console.error(err);
         res.status(500).json({message:'Error uploading CV'});

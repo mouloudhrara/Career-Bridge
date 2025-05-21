@@ -1,8 +1,0 @@
-{
-  "labels": {
-    "SKILL": {
-      "patterns": "skills.json",
-      "model_path": "en_core_web_sm"
-    }
-  }
-}

@@ -9,6 +9,9 @@ router.use(requireAuth);
 // don't require admin access
 router.get('/', getJobs);
 
+router.post('/match-jobs', async (req, res)=>{
+    
+})
 // require admin access
 router.use(isAdmin)
 // Routes

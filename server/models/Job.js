@@ -21,6 +21,11 @@ const Job= sequelize.define('Job',{
     postedBy:{
         type:DataTypes.UUID,
         allowNull:false,
+    },
+      status: {
+        type: DataTypes.ENUM('active', 'inactive', 'filled'),
+        defaultValue: 'active',
+        allowNull: false
     }
 } , {
     tableName: 'jobs'

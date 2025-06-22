@@ -1,42 +1,48 @@
-const {Job} = require('../models/Job');
-const { getJobSuggestions } = require('./groqService.js');
+const { runPythonScript } = require('./groqService'); // Reuse the Python runner
+const Job = require('../models/Job');
 
-
-async function findMatchingJobs( cvData, userId){
+async function findMatchingJobs(cvData, userId) {
     try {
-        // fetching all active jobs from database
-        const jobs= await Job.findAll({
-            where : {
-                status: 'actif'
-            },
-            raw: true
+        // Get all active jobs
+        const jobs = await Job.findAll({ 
+            where: { status: 'active' },
+            raw: true 
         });
-        if(!jobs || jobs.length===0){
-            return [];
-        }
-        // prepare job listings for the LLM
-        const jobListings = jobs.map(job=> ({
+
+        if (!jobs.length) return [];
+
+        // Prepare jobs data for Python processing
+        const jobsData = jobs.map(job => ({
             id: job.id,
-            title:job.title,
+            title: job.title,
             description: job.description,
-            required_skills: job.skillsRequired,
-            posted_by: job.postedBy
+            skillsRequired: job.skillsRequired || [],
+            company: job.company,
+            location: job.location,
+            salaryRange: job.salaryRange
         }));
 
-        // Get AI-powered suggestions 
-        const matchedJobs= await getJobSuggestions(cvData, jobListings);
-        // Enrich with full job details 
-        return matchedJobs.map(suggestion => {
-            const job = jobs.find(j=> j.id === suggestion.job_id);
+        // Call Python matching service
+        const matches = await runPythonScript([
+            'matching_service.py',
+            JSON.stringify(cvData),
+            JSON.stringify(jobsData)
+        ]);
+
+        // Format results with job details
+        return matches.map(match => {
+            const job = jobs.find(j => j.id === match.job_id);
             return {
-                ...suggestion,
-                ...job
+                ...job,
+                matchScore: match.match_score,
+                matchingSkills: match.matching_skills
             };
         });
-    }catch(error){
-        console.error('Error in findMatchingJobs', error);
-        throw error;
+
+    } catch (error) {
+        console.error('Matching error:', error);
+        return [];
     }
 }
 
-module.exports=findMatchingJobs;
+module.exports = findMatchingJobs;

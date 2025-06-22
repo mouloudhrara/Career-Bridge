@@ -1,39 +1,57 @@
-// services/groqService.js
-
 const { PythonShell } = require('python-shell');
 const path = require('path');
 
-async function extractCVData(cvText) {
+async function runPythonScript(args) {
   return new Promise((resolve, reject) => {
-    const pyshell = new PythonShell('groq_service.py', {
+    const options = {
       mode: 'text',
       pythonOptions: ['-u'],
-      scriptPath: path.resolve(__dirname), // adjust if your .py file is elsewhere
-      args: [cvText]
+      scriptPath: path.resolve(__dirname),
+      args: args
+    };
+
+    let output = '';
+    
+    // Determine which script to run based on first argument
+    const scriptName = args[0].endsWith('.py') ? args[0] : 'groq_service.py';
+    const scriptArgs = args[0].endsWith('.py') ? args.slice(1) : args;
+
+    const pyshell = new PythonShell(scriptName, {
+      ...options,
+      args: scriptArgs
     });
 
-    let output='';
-
-    pyshell.on('message', function (message) {
+    pyshell.on('message', (message) => {
       output += message;
     });
 
-    pyshell.on('stderr', function (stderr) {
+    pyshell.on('stderr', (stderr) => {
       console.error('Python stderr:', stderr);
     });
 
-    pyshell.end(function (err) {
+    pyshell.end((err) => {
       if (err) return reject(err);
-
       try {
-        const json = JSON.parse(output);
-        resolve(json);
+        resolve(JSON.parse(output));
       } catch (parseErr) {
-        console.error('Failed to parse JSON from Python output:', output);
+        console.error('Failed to parse Python output:', output);
         reject(parseErr);
       }
     });
   });
 }
 
-module.exports = { extractCVData };
+async function extractCVData(cvText) {
+  try {
+    const result = await runPythonScript(['groq_service.py', cvText]);
+    return result;
+  } catch (err) {
+    console.error('CV extraction failed:', err);
+    throw err;
+  }
+}
+
+module.exports = {
+  extractCVData,
+  runPythonScript
+};

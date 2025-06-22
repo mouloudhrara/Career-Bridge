@@ -6,6 +6,8 @@ const crypto= require('crypto');
 const nodemailer= require('nodemailer');
 const fs= require("fs");
 const pdfParse = require('pdf-parse');
+const findMatchingJobs = require('../services/jobMatchingService');
+
 
 require('dotenv').config();
 
@@ -14,15 +16,49 @@ const createToken= (id, role)=>{
 };
 // Signup user
 const registerUser= async (req, res)=>{
-    const {firstName, lastName, email, password, role} = req.body;
+    const {firstName,
+        lastName, 
+        email, 
+        password, 
+        role,
+        companyName,
+        companyCode
+    } = req.body;
     try{
-        const user= await User.signup(firstName, lastName, email, password, role || 'user');
+        const user= await User.signup(firstName,
+            lastName, 
+            email, 
+            password, 
+            role || 'user',
+            companyName,
+            companyCode
+        );
         const token= createToken(user.id);
         return res.status(201).json({email:user.email, token});
     }catch(err){
         return res.status(400).json({message: err.message});
     }
 }
+const getCompanyInfo = async (req, res) => {
+    try {
+        if (req.user.role !== 'job_poster' && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        const user = await User.findByPk(req.user.id, {
+            attributes: ['companyName', 'email']
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json(user);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching company info', error: err.message });
+    }
+}
+
 // Login user
 const loginUser= async (req, res)=>{
     const {firstName, lastName, email, password} = req.body;
@@ -119,47 +155,111 @@ const resetPassword= async (req, res)=>{
 };
 
 // upload cv
-const uploadCV= async (req, res)=>{
+const uploadCV = async (req, res) => {
     try {
+        const userId = req.user.id;
         
-        // console.log('received file', req.file);
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
 
-        const userId=req.user.id; // user id exists from auth middleware
-        const filePath= req.file.path;
-        // Update user with Cv path
-        // find the user with its primary key
-        const user= await User.findByPk(userId);
-        if(!user) return res.status(400).json({message: 'User not found'});
+        const filePath = req.file.path;
+        const user = await User.findByPk(userId);
+        
+        if (!user) {
+            // Clean up the uploaded file if user not found
+            fs.unlink(filePath, () => {});
+            return res.status(404).json({ message: 'User not found' });
+        }
 
-        // saving the user's cvPath to db
-        user.cvPath=filePath;
+        // Delete old CV file if it exists
+        if (user.cvPath && fs.existsSync(user.cvPath)) {
+            fs.unlink(user.cvPath, (err) => {
+                if (err) console.error('Error deleting old CV:', err);
+            });
+        }
+
+        // Update user with new CV path
+        user.cvPath = filePath;
         await user.save();
 
-        // Extract text from the uploaded CV (PDF)
-        fs.readFile(filePath, async (err, data)=>{
-            if(err) return res.status(500).json({message: 'Error reading the uploaded file'});
+        // Process the CV (extract text and find matching jobs)
+        fs.readFile(filePath, async (err, data) => {
+            if (err) {
+                // Clean up if error reading
+                fs.unlink(filePath, () => {});
+                return res.status(500).json({ message: 'Error reading file' });
+            }
 
-            pdfParse(data).then(async (pdfData)=>{
+            try {
+                const pdfData = await pdfParse(data);
                 const extractedText = pdfData.text;
-                try{
-                    // call Groq to extract skills and experience
-                const {skills, experience} = await extractCVData(extractedText);
-                console.log('Extracted skills', skills);
-                console.log('Extracted experience', experience);
-                res.status(200).json({ message: 'CV uploaded and parsed', skills, experience });
-                } catch(err){
-                    console.error('Failed to extract data from CV:', err);
-                    res.status(500).json({ message: 'Error extracting data from CV' });
-                }
-                
-            });
+                const cvData = await extractCVData(extractedText);
+                const matchedJobs = await findMatchingJobs(cvData, userId);
+
+                res.status(200).json({
+                    message: user.cvPath ? 'CV updated successfully' : 'CV uploaded successfully',
+                    cvData,
+                    matchedJobs
+                });
+
+            } catch (err) {
+                console.error('Failed to process CV:', err);
+                // Clean up if processing fails
+                fs.unlink(filePath, () => {});
+                user.cvPath = null;
+                await user.save();
+                res.status(500).json({ message: 'Failed to process CV', error: err.message });
+            }
         });
-    }catch(err){
+
+    } catch (err) {
         console.error(err);
-        res.status(500).json({message:'Error uploading CV'});
+        if (req.file?.path) {
+            // Clean up if any other error occurs
+            fs.unlink(req.file.path, () => {});
+        }
+        res.status(500).json({ message: 'Error processing CV', error: err.message });
+    }
+};
+// delete CV
+const deleteCV = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await User.findByPk(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (!user.cvPath) {
+            return res.status(400).json({ message: 'No CV to delete' });
+        }
+
+        // Delete the file
+        if (fs.existsSync(user.cvPath)) {
+            fs.unlink(user.cvPath, (err) => {
+                if (err) console.error('Error deleting CV file:', err);
+            });
+        }
+
+        // Update user record
+        user.cvPath = null;
+        await user.save();
+
+        res.status(200).json({ message: 'CV deleted successfully' });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Error deleting CV', error: err.message });
     }
 };
 
 
-
-module.exports={registerUser,loginUser, forgotPassword, resetPassword, uploadCV};
+module.exports={registerUser,
+    loginUser, 
+    forgotPassword, 
+    resetPassword, 
+    uploadCV,
+    deleteCV,
+    getCompanyInfo};

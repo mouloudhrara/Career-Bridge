@@ -32,14 +32,27 @@ const Job= sequelize.define('Job',{
 });
 
 // custom method to declare relationships with other models
-Job.associate = (models)=>{
-    // job is posted by a user (admin)
-    // each job belongs to one User
-    Job.belongsTo(models.User, {
-        // specifies which field in Job model is used to link to the User's id
-        foreignKey: 'postedBy',
-        as:'admin', //optional
-    });
+Job.associate = function(models) {
+  // A Job belongs to a User (poster/admin)
+  Job.belongsTo(models.User, {
+    foreignKey: 'postedBy',
+    as: 'admin'
+  });
+  
+  // A Job can have many Applications
+  Job.hasMany(models.Application, {
+    foreignKey: 'job_id',
+    as: 'applications'
+  });
+};
+
+Job.prototype.getApplicationsWithUsers = async function() {
+  return await this.getApplications({
+    include: [{
+      model: sequelize.models.User,
+      as: 'applicant'
+    }]
+  });
 };
 
 module.exports=Job;

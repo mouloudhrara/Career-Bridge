@@ -60,16 +60,14 @@ const deleteJob = async (req, res)=> {
 // get jobs
 const getJobs = async (req, res)=>{
     try{
-        const jobs=Job.findAll();
+        const jobs= await Job.findAll();
+        console.log("Jobs found:", jobs); // Debug 2
+        console.log("First job:", jobs[0]);
         res.json(jobs);
     } catch(err){
-        res.status(500).json({error: 'Failed to fetch jobs'});
+        res.status(500).json(('Failed to fetch jobs', err));
     }
 };
-
-// find matching jobs
-
-
 
 
 module.exports= {

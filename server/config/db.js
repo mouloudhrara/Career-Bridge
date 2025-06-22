@@ -15,7 +15,7 @@ const sequelize= new Sequelize(
 );
 
 // Sync the database to ensure tables are created or updated
-sequelize.sync({ alter:true }) // Set `force: true` if you want to reset the tables
+sequelize.sync({ alert:true }) // Set `force: true` if you want to reset the tables
   .then(() => console.log('Database synced successfully'))
   .catch(err => console.log('Error syncing database:', err));
 

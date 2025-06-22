@@ -33,9 +33,15 @@ const User= sequelize.define('User', {
         type: DataTypes.STRING,
         defaultValue:'user',
         validate:{
-            isIn:[['user','admin']]
+            isIn:[['user','admin','job_poster']]
         }
-    }, //to add forget password feature
+    },
+    companyName:{
+        type:DataTypes.STRING,
+        allowNull:true,
+    }
+    
+    , //to add forget password feature
     resetToken:{
         type: DataTypes.STRING,
         allowNull:true
@@ -52,7 +58,7 @@ const User= sequelize.define('User', {
 });
 
 // Static Signup Method
-User.signup = async function (firstName, lastName, email, password, role ) {
+User.signup = async function (firstName, lastName, email, password, role,companyName, companyCode ) {
     if (!firstName || !lastName || !email || !password) {
         throw Error('All fields must be filled');
     }
@@ -71,6 +77,16 @@ User.signup = async function (firstName, lastName, email, password, role ) {
         throw Error('Email already in use');
     }
 
+    // Verify company code if registering as job_poster
+    if (role === 'job_poster') {
+        if (!companyCode || companyCode !== process.env.COMPANY_SECRET_CODE) {
+            throw Error('Invalid company registration code');
+        }
+        if (!companyName) {
+            throw Error('Company name is required for job posters');
+        }
+    }
+
     // Hash the password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -80,7 +96,9 @@ User.signup = async function (firstName, lastName, email, password, role ) {
         lastName, 
         email, 
         password: hashedPassword, 
-        role });
+        role,
+        companyName: role === 'job_poster' ? companyName : null
+    });
     return user;
 };
 
@@ -101,5 +119,28 @@ User.login= async function (email, password) {
     }
     return user;
 }
+
+User.associate = function(models) {
+  // A User can have many Applications
+    User.hasMany(models.Application, {
+    foreignKey: 'user_id',
+    as: 'applications'
+    });
+  // A User can post many Jobs (as admin)
+    User.hasMany(models.Job, {
+    foreignKey: 'postedBy',
+    as: 'postedJobs'
+    });
+};
+
+// fetches all applications for the user instance
+User.prototype.getApplicationsWithJobs = async function() {
+  return await this.getApplications({
+    include: [{
+      model: sequelize.models.Job,
+      as: 'job'
+    }]
+  });
+};
 
 module.exports={User};

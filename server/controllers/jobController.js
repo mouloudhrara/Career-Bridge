@@ -1,4 +1,5 @@
-const Job=require('../models/Job');
+const db=require('../models');
+const Job=db.Job;
 // Create job
 const createJob= async (req, res)=>{
     const {title, description, skillsRequired, postedBy} = req.body;

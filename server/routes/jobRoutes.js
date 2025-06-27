@@ -5,14 +5,11 @@ const requireAuth = require('../middlewares/requireAuth');
 const isAdmin = require('../middlewares/isAdmin');
 
 // require authentication
-router.use(requireAuth);
+
 // don't require admin access
 router.get('/', getJobs);
-
-router.post('/match-jobs', async (req, res)=>{
-    
-})
 // require admin access
+router.use(requireAuth);
 router.use(isAdmin)
 // Routes
 router.post('/', createJob );

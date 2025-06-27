@@ -1,6 +1,7 @@
 const {extractCVData } = require('../services/groqService');
 
-const {User} = require('../models/User');
+const db = require('../models');
+const User=db.User;
 const jwt= require('jsonwebtoken');
 const crypto= require('crypto');
 const nodemailer= require('nodemailer');

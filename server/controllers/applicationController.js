@@ -1,4 +1,7 @@
-const {Application, User, Job }=require("../models/Application");
+const db = require("../models");
+const Job= db.Job;
+const User = db.User;
+const Application=db.Application;
 
 const applyForJob= async (req, res)=>{
     try{
@@ -19,7 +22,7 @@ const applyForJob= async (req, res)=>{
     }
 
     //check if job exists and active 
-    const {job} = await Job.findOne({
+    const job = await Job.findOne({
         where:{
             id:jobId,
             status: 'active'
@@ -46,12 +49,10 @@ const applyForJob= async (req, res)=>{
     const application = await Application.create({
         job_id:jobId,
         user_id:userId,
-        // These will be auto-populated by the hook, but you can override:
-        applicant_first_name: user.firstName,
-        applicant_last_name: user.lastName,
-        applicant_email: user.email,
-        applicant_phone: user.phone,
-        cv_path: user.cvPath
+        cv_path: user.cvPath,
+        // Other fields will be auto-populated by the hook:
+        ...req.body // overriding auto-populated fields
+        
     });
     res.status(201).json({
         message:'Application submitted successfully'
@@ -65,7 +66,7 @@ const applyForJob= async (req, res)=>{
 };
 
 // get all applications (user)
-getUserApps = async (req, res)=>{
+const getUserApps = async (req, res)=>{
     try{
         const userId= req.user.id;
         const {status} = req.query;
@@ -84,11 +85,10 @@ getUserApps = async (req, res)=>{
             order:[['applied_at', 'DESC']]
         });
 
-        res.json({
-            jobTitle:job.title,
-            total:applications.count,
-            applications:applications.rows
-        });
+            res.json({
+                total: applications.count,
+                applications: applications.rows
+            });
     }
     catch(error){
         res.status(500).json({
@@ -99,57 +99,45 @@ getUserApps = async (req, res)=>{
 };
 
 // get job applications (admin)
-const getJobApps= async (req, res)=> {
-    try{
-        const {jobId}= req.params;
-        const {status} = req.query;
-        const userId = req.user.id;
+const getAllApplications = async (req, res) => {
+    try {
+        const { status } = req.query;
+        
+        const whereClause = {};
+        if (status) whereClause.status = status;
 
-
-        // check if the job exists and the use has permission
-        const job = await Job.findByPk(jobId);
-        if(!job){
-            return res.status(404).json({ error: 'Job not found'});
-        }
-        // check if user is admin or jobPoster
-        const isAdmin = req.user.role === 'admin';
-        const isJobOwner = job.postedBy=== userId;
-
-        if(!isAdmin && !isJobOwner){
-            return res.status(403).json({
-                error: 'Not authorized to view these applications'
-            });
-        }
-
-        const whereClause = {job_id : jobId};
-        if( status) whereClause.status=  status;
         const applications = await Application.findAndCountAll({
             where: whereClause,
-            include:[{
-                model:User,
-                as: 'applicant',
-                attributes:['id','firstName','lastName', 'email', 'phone']
-            }],
-            order:[['applied_at', 'DESC']]
+            include: [
+                {
+                    model: User,
+                    as: 'applicant',
+                    attributes: ['id', 'firstName', 'lastName', 'email', 'phone']
+                },
+                {
+                    model: Job,
+                    as: 'job',
+                    attributes: ['id', 'title', 'company']
+                }
+            ],
+            order: [['applied_at', 'DESC']]
         });
 
         res.json({
-            jobTitle:job.title,
-            total:applications.count,
-            applications:applications.rows
+            total: applications.count,
+            applications: applications.rows
         });
-    }catch(error){
+    } catch (error) {
         res.status(500).json({
-            error:'Failed to fetch job applications',
+            error: 'Failed to fetch applications',
             details: error.message
         });
     }
 };
 
 
-
-
 module.exports={
     applyForJob,
-    getJobApps
+    getAllApplications,
+    getUserApps
 };
